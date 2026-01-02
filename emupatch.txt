@@ -1,0 +1,191 @@
+Patch (drop-in C code)
+Add these includes near the top of 8086tiny.c (it already uses SDL, so just make sure SDL.h is available):
+/* --- add near the other includes at top of file --- */
+#include <SDL.h>
+#include <stdbool.h>
+#include <stdint.h>
+Add these mouse structures and helpers (put somewhere among other global variables and helper functions):
+/* --- INT33 mouse emulation (host-backed) --- */
+
+#define MOUSE_MAX_X 320   /* guest coordinate width (adjust below) */
+#define MOUSE_MAX_Y 200   /* guest coordinate height (adjust below) */
+
+/* mouse state visible to emulator */
+static struct {
+    int guest_w, guest_h;   /* guest coordinate area (e.g. 320x200 or 640x200) */
+    int host_w, host_h;     /* SDL window size */
+    int x, y;               /* current guest coords */
+    int buttons;            /* bitmask: bit0 = left, bit1 = right */
+    bool visible;
+} emu_mouse;
+
+/* initialize mouse state */
+static void emu_mouse_init(int gw, int gh)
+{
+    emu_mouse.guest_w = gw;
+    emu_mouse.guest_h = gh;
+    emu_mouse.host_w = 640;  /* default; will update from SDL window if available */
+    emu_mouse.host_h = 480;
+    emu_mouse.x = gw/2;
+    emu_mouse.y = gh/2;
+    emu_mouse.buttons = 0;
+    emu_mouse.visible = true;
+}
+Add a helper that samples SDL mouse state and maps into guest coords. Call this once per main loop / poll cycle (where 8086tiny already polls events):
+/* call regularly from main loop where SDL events are processed */
+static void emu_mouse_poll_from_host(SDL_Window *win)
+{
+    int mx, my;
+    uint32_t sdl_buttons;
+
+    if (win) {
+        SDL_GetWindowSize(win, &emu_mouse.host_w, &emu_mouse.host_h);
+    }
+    sdl_buttons = SDL_GetMouseState(&mx, &my);
+
+    /* map host (window) coords to guest coords */
+    if (emu_mouse.host_w > 0 && emu_mouse.host_h > 0) {
+        /* clamp & scale */
+        if (mx < 0) mx = 0;
+        if (my < 0) my = 0;
+        if (mx > emu_mouse.host_w) mx = emu_mouse.host_w;
+        if (my > emu_mouse.host_h) my = emu_mouse.host_h;
+        emu_mouse.x = (mx * emu_mouse.guest_w) / emu_mouse.host_w;
+        emu_mouse.y = (my * emu_mouse.guest_h) / emu_mouse.host_h;
+    }
+
+    /* buttons: SDL_BUTTON(SDL_BUTTON_LEFT) etc. */
+    emu_mouse.buttons = 0;
+    if (sdl_buttons & SDL_BUTTON(SDL_BUTTON_LEFT)) emu_mouse.buttons |= 1;
+    if (sdl_buttons & SDL_BUTTON(SDL_BUTTON_RIGHT)) emu_mouse.buttons |= 2;
+    /* (middle button ignored for now) */
+}
+Add the INT 0x33 emulation function. This inspects the guest CPU registers (you need to adapt variable names to the CPU/state struct used in your 8086tiny.c — below I assume there's an accessible CPU register set named regs with ax, bx, cx, dx, bp, sp, ip, cs, ds, es or macros get_reg(REG_AX) / set_reg(REG_AX). If your source uses e.g. r.r[AX], replace accordingly. I’ve provided a flexible small wrapper you can adapt if register naming differs.):
+/* --- adapt these accessor macros to match your cpu/reg naming --- */
+/* Common 8086tiny uses 'regs' or arrays - if your source uses different names,
+   replace the get_reg/set_reg macros accordingly */
+
+#ifndef GET_REG
+/* Example: if 8086tiny uses 'rax' style names, change these. */
+#define GET_REG_AX (regs->ax)
+#define GET_REG_BX (regs->bx)
+#define GET_REG_CX (regs->cx)
+#define GET_REG_DX (regs->dx)
+#define SET_REG_AX(v) (regs->ax = (v))
+#define SET_REG_BX(v) (regs->bx = (v))
+#define SET_REG_CX(v) (regs->cx = (v))
+#define SET_REG_DX(v) (regs->dx = (v))
+#endif
+
+/* If your code doesn't have a 'regs' pointer, replace GET_REG... macros above
+   with the right expressions for reading/writing AX/BX/CX/DX. */
+
+static void emulate_int33(void *cpu_regs_ptr)
+{
+    /* If your emulator stores registers differently, you should cast and access them.
+       Example (replace with your struct): struct CPURegs *r = (struct CPURegs*)cpu_regs_ptr;
+       and use r->ax etc. */
+
+    /* Generic approach: assume cpu_regs_ptr is not used and that GET_REG macros resolve.
+       If not, adapt. */
+
+    uint16_t ax = (uint16_t)GET_REG_AX;
+    uint16_t bx = (uint16_t)GET_REG_BX;
+    uint16_t cx = (uint16_t)GET_REG_CX;
+    uint16_t dx = (uint16_t)GET_REG_DX;
+
+    switch (ax) {
+    case 0x0000:
+        /* Reset / detect mouse driver
+           Return AX = number of installed mice (e.g. 0xffff? some drivers do)
+           We'll return AX=0xFFFF (success) and BX = number of buttons (2) */
+        SET_REG_AX(0xFFFF);
+        SET_REG_BX(2);
+        break;
+
+    case 0x0001:
+        /* Show/hide mouse cursor
+           CX = 0 show, 1 hide (some docs vary); we'll treat CX==0 => show */
+        if (cx == 0) emu_mouse.visible = true;
+        else emu_mouse.visible = false;
+        SET_REG_AX(0); /* success */
+        break;
+
+    case 0x0003:
+        /* Get mouse position and button status */
+        /* Return BX = buttons (bit0 left, bit1 right)
+           CX = x coord, DX = y coord (word sized) */
+        SET_REG_BX((uint16_t)emu_mouse.buttons);
+        SET_REG_CX((uint16_t)emu_mouse.x);
+        SET_REG_DX((uint16_t)emu_mouse.y);
+        SET_REG_AX(0); /* success */
+        break;
+
+    case 0x000B:
+        /* Get button press/release counts and status (rough support)
+           BX = button number (0=left,1=right), returns CX=pressCount DX=releaseCount
+           We'll just return status in AX and set counts to 0 (not tracked) */
+        {
+            uint16_t btnnum = (uint16_t)bx;
+            /* basic status: bit0 = pressed */
+            uint16_t status = 0;
+            if (btnnum == 0 && (emu_mouse.buttons & 1)) status = 1;
+            if (btnnum == 1 && (emu_mouse.buttons & 2)) status = 1;
+            SET_REG_AX(status);
+            SET_REG_CX(0); /* press count (not implemented) */
+            SET_REG_DX(0); /* release count */
+        }
+        break;
+
+    case 0x000C:
+        /* Set mouse position: CX = x, DX = y */
+        emu_mouse.x = cx;
+        emu_mouse.y = dx;
+        /* clamp */
+        if (emu_mouse.x < 0) emu_mouse.x = 0;
+        if (emu_mouse.y < 0) emu_mouse.y = 0;
+        if (emu_mouse.x > emu_mouse.guest_w) emu_mouse.x = emu_mouse.guest_w;
+        if (emu_mouse.y > emu_mouse.guest_h) emu_mouse.y = emu_mouse.guest_h;
+        SET_REG_AX(0); /* success */
+        break;
+
+    default:
+        /* unsupported INT33 function - return AX=0 (failure) */
+        SET_REG_AX(0);
+        break;
+    }
+}
+IMPORTANT: the macro block above (GET_REG_AX, SET_REG_AX, etc.) is intentional placeholder glue. 8086tiny’s register representation is in the same file but may use a different variable name/structure. Replace GET_REG_AX / SET_REG_AX with the actual expressions your copy uses to read/write AX/BX/CX/DX from inside the C code where interrupts are dispatched. Typical single-file emulators expose something like r.a.x or r.r[AX]. If you paste the interrupt handling code from your 8086tiny.c here I’ll swap them in for you.
+Hook the INT 33 handler into the emulator's interrupt entry path.
+Find where the emulator handles int n instructions or where software interrupts are dispatched. There is usually a switch or function like do_int(int n) or handling code that interprets int imm8 and int 0xNN. Add near the top of that handler:
+/* PSEUDO - find the place where the emulator does: if (intnum==X) { ... } */
+if (intnum == 0x33) {
+    /* poll host mouse into emu_mouse before answering */
+    /* If you have an SDL_Window* named 'window' or similar, pass it in */
+    emu_mouse_poll_from_host(window_ptr_if_you_have_one);
+    emulate_int33(/* optionally pass regs pointer if needed */);
+    /* mark interrupt handled without pushing guest vector, because we serviced it */
+    return; /* or appropriate return/exit for your interrupt handler */
+}
+If the emulator always pushes flags/CS:IP and then jumps to a vector when software interrupts are used, you should instead intercept INT 33 before that push (or treat it as a fast trap). The safest place is wherever the interpreter dispatches software interrupts — intercept there, handle and return so the usual INT processing is bypassed.
+Where to insert in your 8086tiny.c
+Add the includes and emu_mouse_init() call early during emulator init — e.g. after the existing SDL or graphics initialization code. Call emu_mouse_init() with the guest resolution you want to emulate:
+For text mode apps expecting 80×25 text on CGA: map to 640×200 (so use emu_mouse_init(640, 200)).
+For many graphics demos that use 320×200, use emu_mouse_init(320, 200).
+Add emu_mouse_poll_from_host(window) into your main event loop where SDL events are processed — 8086tiny already has an SDL event dispatch for keyboard; add this there so the host mouse state is sampled every frame.
+Add the if (intnum==0x33) interception into your software-event/interrupt dispatch block (look for code that handles the int instruction or doint()).
+If you paste the relevant snippets of your 8086tiny.c (the register struct or used names; the interrupt dispatch function; and the SDL main loop / event code) I will generate the precise, copy-paste-ready lines with the exact register names and the exact place to insert them.
+Testing steps
+Build 8086tiny locally (same as usual, e.g. make or gcc ...).
+Boot DOS (the repository contains a FreeDOS disk image).
+Run a simple DOS program that queries INT 33h. Example test program in MASM/NASM that calls AX=0x0000 then AX=0x0003 to print mouse position — I can provide a tiny test binary / assembly if you want. Or try a known DOS mouse demo that uses INT 33h.
+Move the host mouse inside the SDL window — the program should see motion & button presses.
+Limitations / follow-ups
+This is not a hardware-level emulation (no IRQs, no PS/2 or UART register emulation). Some DOS apps expect a mouse device driver (resident) or use low-level hardware — those won’t work with this approach.
+We implemented only a subset of INT 33h functions. If you need more (e.g., driver installation calls, absolute coordinate scaling, button wheel, drag/double-click counts, sample rate), I can extend it.
+If you prefer proper PS/2 or serial mouse emulation (so the guest can install a real mouse driver and apps can use hardware-level accesses), I can do that next — it will be a bigger patch that wires ports, IRQs, and possibly the PIC. Tell me if you want that and I’ll produce a UART/PS2 implementation (more work but doable).
+If you want, I’ll do one of these next (pick one):
+A) Make the patch exact for your local 8086tiny.c — paste the small interrupt handler and the top-of-file register names (or paste the interrupt function and the register struct) and I’ll generate the precise code ready to paste.
+B) Extend the INT 33h emulation to cover more functions (cursor shape, bounds, sample counters, button wheel, driver install conventions).
+C) Implement full PS/2 or serial (COM1) mouse emulation with IRQ (longer job — I’ll produce a complete device emulation + UART registers + PIC IRQ raise code).
+Which do you want next? If you want option A, paste the int handler + register definitions and I’ll produce the exact lines to paste into your file.

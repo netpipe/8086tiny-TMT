@@ -38,7 +38,7 @@
 
 /* TMT virtual terminal for text-mode output */
 #ifdef USE_TMT
-#include "tmt.h"
+//#include "tmt.h"
 #endif
 
 /* Original 8086tiny defines — keep these exactly */

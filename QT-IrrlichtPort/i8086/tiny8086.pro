@@ -5,13 +5,15 @@ CONFIG += c++11
 TARGET = VoxelEditor
 TEMPLATE = app
 
-SOURCES += main.cpp
+SOURCES += main.cpp \
+    tmt.c
 
 
-HEADERS +=
+HEADERS += \
+    tmt.h
 
 # Include paths for Irrlicht
-INCLUDEPATH += /Users/macbook2015/Downloads/irrlicht-1.8.5/include /Users/macbook2015/Desktop/brew/include/2
+INCLUDEPATH += /Users/macbook2015/Downloads/irrlicht-1.8.5/include /Users/macbook2015/Desktop/brew/include/
 
 # Library paths for Irrlicht
 LIBS += -L/Users/macbook2015/Downloads/irrlicht-1.8.5/lib/mac -L/Users/macbook2015/Desktop/brew/lib -lpng -lIrrlicht -framework Foundation -framework OpenGL -framework Cocoa -framework Carbon -framework AppKit -framework IOKit

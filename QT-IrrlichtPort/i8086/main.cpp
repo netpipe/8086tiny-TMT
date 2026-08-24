@@ -6,7 +6,7 @@
 // This work is licensed under the MIT License. See included LICENSE.TXT.
 #define IRRLICHT
 #define NO_GRAPHICS
-#define NO_AUDIO
+#define USE_TMT
 
 #ifdef IRRLICHT
 #include <irrlicht.h>
@@ -25,6 +25,8 @@ IrrlichtDevice * device;
 IGUIEnvironment* env;
 IGUIStaticText* joy_error;
 #endif
+
+ITexture* emuTexture;
 
 #include <time.h>
 #include <sys/timeb.h>
@@ -1345,7 +1347,7 @@ void irrlichtloop(){
 			//{
 			//	driver->beginScene(video::ECBF_COLOR | video::ECBF_DEPTH, SColor(0,200,200,200));
 				driver->beginScene(true, true, video::SColor(0,220,220,220));
-
+ updateMonitorTexture(emuTexture);
 				env->drawAll();
 
 				driver->endScene();
@@ -1383,7 +1385,6 @@ int main(int argc, char** argv)
 	driver=device->getVideoDriver();
 	 smgr = device->getSceneManager();
 
-     IGUIEnvironment* guienv = device->getGUIEnvironment();
 
 	if (device == 0)
 		return 1; // could not create selected driver.
@@ -1415,7 +1416,7 @@ int main(int argc, char** argv)
 //			position2d<int>(10,10));
 
     // Create a power-of-two-sized texture
-    ITexture* emuTexture = driver->addTexture(dimension2du(512, 256), "EmuTex");
+    emuTexture = driver->addTexture(dimension2du(512, 256), "EmuTex");
 
 
 
@@ -1441,18 +1442,18 @@ int main(int argc, char** argv)
 		*/
 		driver->beginScene(true, true, video::SColor(0,220,220,220));
         //driver->beginScene(ECBF_COLOR | ECBF_DEPTH, SColor(255,100,101,140));
-        updateMonitorTexture(emuTexture);
+       // updateMonitorTexture(emuTexture);
 
 		smgr->drawAll();
-        guienv->drawAll();
+        env->drawAll();
 
 		driver->endScene();
 	}
 
 //
-//while(1){
-//irrlichtloop();
-//};
+while(1){
+irrlichtloop();
+};
 device->drop();
 #endif
 

@@ -19,8 +19,8 @@ SRC_TMT=tmt.c
 
 all: 
 	${MAKE} 8086tiny
-	${MAKE} 8086tiny_emsc
-	${MAKE} 8086tiny_node
+	#${MAKE} 8086tiny_emsc
+	#${MAKE} 8086tiny_node
 
 8086tiny: 8086tiny.c
 	${CC} 8086tiny.c ${SRC_TMT} ${OPTS_TMT} ${OPTS_SDL} ${OPTS_ALL} -o ./build/8086tiny

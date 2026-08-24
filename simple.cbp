@@ -4,19 +4,42 @@
 	<Project>
 		<Option title="8086tiny" />
 		<Option pch_mode="0" />
-		<Option compiler="emscripten" />
+		<Option compiler="gcc" />
+		<MakeCommands>
+			<Build command="" />
+			<CompileFile command="" />
+			<Clean command="" />
+			<DistClean command="" />
+			<AskRebuildNeeded command="" />
+			<SilentBuild command=" &gt; $(CMD_NULL)" />
+		</MakeCommands>
 		<Build>
 			<Target title="default">
 				<Option output="./8086tiny" prefix_auto="1" extension_auto="1" />
 				<Option type="1" />
 				<Option compiler="gcc" />
 				<Option projectResourceIncludeDirsRelation="1" />
+				<Compiler>
+					<Add option="-fsigned-char" />
+					<Add option="-std=c99" />
+					<Add option="-DUSE_TMT" />
+					<Add option="-DTMT_HAS_WCWIDTH" />
+					<Add option="-D_THREAD_SAFE" />
+					<Add directory="/Users/macbook2015/Desktop/brew/include/SDL" />
+				</Compiler>
+				<Linker>
+					<Add option="-framework Cocoa" />
+					<Add option="-Wl" />
+					<Add library="SDLmain" />
+					<Add library="SDL" />
+					<Add directory="/Users/macbook2015/Desktop/brew/lib" />
+				</Linker>
 			</Target>
 			<Target title="emscripten">
 				<Option output="./8086tiny.html" prefix_auto="0" extension_auto="0" />
 				<Option object_output=".emobjs" />
 				<Option type="1" />
-				<Option compiler="emscripten" />
+				<Option compiler="gcc" />
 				<Option projectCompilerOptionsRelation="1" />
 				<Option projectLinkerOptionsRelation="1" />
 				<Option projectIncludeDirsRelation="1" />
@@ -47,7 +70,7 @@
 				<Option output="./8086tiny.html" prefix_auto="0" extension_auto="0" />
 				<Option object_output=".emobjs" />
 				<Option type="1" />
-				<Option compiler="emscripten" />
+				<Option compiler="gcc" />
 				<Option projectIncludeDirsRelation="1" />
 				<Option projectResourceIncludeDirsRelation="1" />
 				<Option projectLibDirsRelation="1" />
@@ -80,7 +103,7 @@
 				<Option output="./8086tiny.html" prefix_auto="0" extension_auto="0" />
 				<Option object_output=".emobjs" />
 				<Option type="1" />
-				<Option compiler="emscripten" />
+				<Option compiler="gcc" />
 				<Option projectCompilerOptionsRelation="1" />
 				<Option projectLinkerOptionsRelation="1" />
 				<Option projectIncludeDirsRelation="1" />
@@ -111,19 +134,6 @@
 		<VirtualTargets>
 			<Add alias="All" targets="default;" />
 		</VirtualTargets>
-		<Compiler>
-			<Add option="`sdl-config --cflags`" />
-			<Add directory="../../../../irrlicht-ogl-es/irrlicht/include" />
-			<Add directory="/run/media/netpipe/df7f53ef-2a98-4562-a498-7da578dab660/Dev/libs/Scripting/emsdk/upstream/emscripten/tests/bullet/src" />
-			<Add directory="../../../Libs/irrlicht-ogl-es/irrlicht/include" />
-		</Compiler>
-		<Linker>
-			<Add option="`sdl-config --libs`" />
-			<Add library="SDL" />
-			<Add directory="../../../irrlicht-ogl-es/irrlicht/lib/Linux" />
-			<Add directory="/run/media/netpipe/df7f53ef-2a98-4562-a498-7da578dab660/Dev/libs/Scripting/emsdk/upstream/emscripten/tests/bullet/src/.libs" />
-			<Add directory="../../../Libs/irrlicht-ogl-es/irrlicht/lib/Linux" />
-		</Linker>
 		<Unit filename="8086tiny.c">
 			<Option compilerVar="CC" />
 		</Unit>

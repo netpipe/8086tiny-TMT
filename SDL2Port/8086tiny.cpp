@@ -18,6 +18,7 @@
 #include <fcntl.h>
 #endif
 #define USE_TMT
+#define TMT_HAS_WCWIDTH
 #ifdef USE_TMT
 #ifdef __cplusplus
 extern "C" {
@@ -27,11 +28,14 @@ extern "C" {
 }
 #endif
 #endif
-#include "SDL2/SDL_ttf.h"
+
+//#define NO_GRAPHICS
+#include "SDL_ttf.h"
 #include "consolemgr.h"
 #ifndef NO_GRAPHICS
-#include "SDL2/SDL.h"
+#include "SDL.h"
 #endif
+
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -124,8 +128,8 @@ extern "C" {
 // Use hd.img file
 //#define EMSCRIPTEN_USE_HD
 #define EMSCRIPTEN_BIOS_FILE "bios"
-//#define EMSCRIPTEN_FD_FILE "fd.img"
-#define EMSCRIPTEN_FD_FILE "ros.img"
+#define EMSCRIPTEN_FD_FILE "fd.img"
+//#define EMSCRIPTEN_FD_FILE "ros.img"
 #define EMSCRIPTEN_HD_FILE "hd.img"
 
 // Virtual terminal related
@@ -604,11 +608,17 @@ void closeConsoleMgr() {
 }
 int initConsoleMgr()
 {
-	//virtualConsole = tmt_open(CONSOLEH, CONSOLEW, callback, NULL, NULL);
+//	virtualConsole = tmt_open(CONSOLEH, CONSOLEW, callback, NULL, NULL);
 	initTmt(&consoleMgr, vterm);
 	if (!initFont(&consoleMgr, "consola.ttf", 18)) return EXIT_FAILURE;
-	setConsoleRect(&consoleMgr, { 0,0,WIDTH ,HEIGHT });
-	setScreenRect(&consoleMgr, { 0,0,WIDTH ,HEIGHT });
+	        SDL_Rect* rect;
+        rect->x = 0;
+        rect->y = 0;
+        rect->w = WIDTH;
+        rect->h = HEIGHT;
+	setConsoleRect(&consoleMgr, *rect);
+	setScreenRect(&consoleMgr,  *rect );
+	//setScreenRect(&consoleMgr,  { 0,0,WIDTH ,HEIGHT } );
 
 	if (!vterm) {
 		closeFont(&consoleMgr);

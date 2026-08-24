@@ -121,14 +121,14 @@ SDL_Surface* renderConsole(ConsoleMgr* mgr)
 						renderstyle |= TTF_STYLE_UNDERLINE;
 					char str[2] = { s->lines[r]->chars[c].c & 0xFF,0 };
 					setFontStyle(mgr, renderstyle);
-					
+
 					SDL_Surface* text = TTF_RenderText_Shaded(font, str, convertTmtColorTo(!(attr.fg==TMT_COLOR_DEFAULT || attr.fg == 0) ? attr.fg : TMT_COLOR_BLACK), convertTmtColorTo(!(attr.bg == TMT_COLOR_DEFAULT || attr.bg == 0) ? attr.bg : TMT_COLOR_WHITE));
 					rect.x = current_x;
 					rect.y = current_y;
 					rect.w = text->w;
 					rect.h = text->h;
 					SDL_BlitSurface(text, &text->clip_rect, mgr->surface, &rect);
-					if (!mgr->charactW) 
+					if (!mgr->charactW)
 						mgr->charactW = text->pitch;
 					current_x += mgr->charactW;
 					SDL_FreeSurface(text);
@@ -139,12 +139,12 @@ SDL_Surface* renderConsole(ConsoleMgr* mgr)
 		}
 		return mgr->surface;
 	}
-	return NULL;	
+	return NULL;
 }
 
 void renderCursor(ConsoleMgr* mgr) {
 	if (mgr&&mgr->surface) {
-		std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - mgr->time);
+		std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double> >(std::chrono::high_resolution_clock::now() - mgr->time);
 		if (time_span.count() > 0.7) {
 			const TMTPOINT* cur = tmt_cursor(mgr->terminal);
 			SDL_Rect rect;
